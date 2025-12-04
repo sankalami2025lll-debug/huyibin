@@ -1,3 +1,4 @@
+[love_notes (2).html](https://github.com/user-attachments/files/23935497/love_notes.2.html)
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -31,7 +32,9 @@
             background-color: #fef2f2; /* 更柔和的粉色背景，与整体风格一致 */
             cursor: pointer;
             overflow: hidden;
-            position: relative;
+            position: fixed;
+            top: 0;
+            left: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -39,15 +42,16 @@
             touch-action: manipulation;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            margin: 0;
+            padding: 0;
         }
         
         /* 9:16比例的主容器 */
         .app-container {
-            width: 100%;
-            max-width: 540px; /* 标准手机宽度 */
-            height: 0;
-            padding-bottom: 177.78%; /* 9:16 = 16/9 ≈ 177.78% */
+            width: 100vw;
+            height: 100vh;
             position: relative;
+            overflow: hidden;
             background-color: #fef2f2;
             overflow: hidden;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
@@ -372,39 +376,9 @@
                 box-shadow: 0 0 20px rgba(236, 72, 153, 0.6);
             }
         }
-
-        /* 音频控制按钮 */
-        .audio-toggle {
-            position: fixed;
-            top: 12px;
-            right: 12px;
-            z-index: 1000;
-            width: 44px;
-            height: 44px;
-            background: rgba(255,255,255,0.9);
-            border-radius: 50%;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.15);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .audio-toggle i {
-            color: #ec4899;
-            font-size: 18px;
-        }
     </style>
 </head>
 <body>
-    <!-- 背景音乐：把生日歌文件放到仓库路径 /audio/birthday.mp3 或修改 src 指向你的音频路径 -->
-    <audio id="bgAudio" src="./audio/birthday.mp3" preload="auto" loop></audio>
-
-    <!-- 播放/暂停按钮（可见，便于控制） -->
-    <div class="audio-toggle" id="audioToggle" title="播放/暂停">
-        <i id="audioIcon" class="fa fa-play"></i>
-    </div>
-
     <!-- 加载动画 -->
     <div class="loading-screen" id="loadingScreen">
         <div class="loading-spinner"></div>
@@ -430,6 +404,11 @@
         </div>
     </div>
 
+    <!-- 音频元素 - 使用可靠的公共音频源 -->
+    <audio id="birthdaySong" loop preload="auto">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" type="audio/mpeg">
+    </audio>
+    
     <script>
         // 生日祝福消息数组
         const loveMessages = [
@@ -480,9 +459,6 @@
         const body = document.body;
         const contentWrapper = document.querySelector('.content-wrapper');
         const birthdayPoster = document.getElementById('birthdayPoster');
-        const bgAudio = document.getElementById('bgAudio');
-        const audioToggle = document.getElementById('audioToggle');
-        const audioIcon = document.getElementById('audioIcon');
         let hasClicked = false;
         
         // 隐藏微信提示
@@ -500,8 +476,50 @@
             if (hasClicked) return;
             hasClicked = true;
 
-            // 尝试播放背景音乐（在用户手势触发下，移动浏览器/微信通常允许播放）
-            playBackgroundAudio();
+            // 播放生日歌 - 优化版
+            const birthdaySong = document.getElementById('birthdaySong');
+            birthdaySong.volume = 0.5; // 设置音量为50%
+            
+            // 微信环境检测
+            const isWechat = /MicroMessenger/i.test(navigator.userAgent);
+            
+            // 移动设备检测
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // 尝试播放音频
+            function tryPlayAudio() {
+                const playPromise = birthdaySong.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('音频播放成功');
+                    }).catch(error => {
+                        console.log('音频播放失败:', error);
+                        
+                        // 在移动设备或微信环境中，可能需要用户交互才能播放音频
+                        if (isWechat || isMobile) {
+                            // 创建一个播放按钮
+                            const audioButton = document.createElement('div');
+                            audioButton.className = 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-pink-500 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center';
+                            audioButton.innerHTML = '<i class="fa fa-music mr-2"></i> 点击播放生日歌';
+                            
+                            audioButton.onclick = function() {
+                                birthdaySong.play().then(() => {
+                                    audioButton.remove();
+                                }).catch(err => {
+                                    console.log('再次尝试播放失败:', err);
+                                    alert('请检查设备音量设置');
+                                });
+                            };
+                            
+                            document.body.appendChild(audioButton);
+                        }
+                    });
+                }
+            }
+            
+            // 立即尝试播放
+            tryPlayAudio();
 
             // 创建粒子效果 - 从海报中心爆发
             createParticles();
@@ -526,49 +544,7 @@
                 }, 800);
             }, 500); // 快速过渡到便签动画
         }
-
-        // 播放背景音频（首次用户手势触发时会生效）
-        function playBackgroundAudio() {
-            if (!bgAudio) return;
-            bgAudio.volume = 0.9;
-            // 在现代浏览器或微信内核中，必须由用户手势触发播放；当前函数在第一次点击中被调用
-            const playPromise = bgAudio.play();
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    updateAudioIcon(true);
-                }).catch((err) => {
-                    // 如果播放被阻止，则保持按钮可见以供手动触发
-                    updateAudioIcon(!bgAudio.paused);
-                    console.warn('自动播放被阻止：', err);
-                });
-            } else {
-                updateAudioIcon(!bgAudio.paused);
-            }
-        }
-
-        // 切换播放/暂停
-        function toggleAudio() {
-            if (!bgAudio) return;
-            if (bgAudio.paused) {
-                bgAudio.play().then(() => updateAudioIcon(true)).catch(() => updateAudioIcon(!bgAudio.paused));
-            } else {
-                bgAudio.pause();
-                updateAudioIcon(false);
-            }
-        }
-
-        function updateAudioIcon(isPlaying) {
-            if (isPlaying) {
-                audioIcon.classList.remove('fa-play');
-                audioIcon.classList.add('fa-pause');
-                audioToggle.style.opacity = '0.95';
-            } else {
-                audioIcon.classList.remove('fa-pause');
-                audioIcon.classList.add('fa-play');
-                audioToggle.style.opacity = '0.8';
-            }
-        }
-
+        
         // 创建粒子效果 - 与海报设计匹配
         function createParticles() {
             const particleCount = 100; // 增加粒子数量
@@ -784,20 +760,20 @@
             return isLightColor(bgColor) ? '#333333' : '#ffffff';
         }
 
-        // 添加轻微浮动效果
-        function addFloatAnimation(element) {
-            let time = 0;
-            const originalTop = parseFloat(element.style.top);
-            
-            function animate() {
-                time += 0.01;
-                const floatY = Math.sin(time) * 3; // 只做上下浮动
-                element.style.top = `${originalTop + floatY}px`;
-                requestAnimationFrame(animate);
-            }
-            
-            animate();
-        }
+// 添加轻微浮动效果
+function addFloatAnimation(element) {
+    let time = 0;
+    const originalTop = parseInt(element.style.top);
+    
+    function animate() {
+        time += 0.01;
+        const floatY = Math.sin(time) * 3; // 只做上下浮动
+        element.style.top = `${originalTop + floatY}px`;
+        requestAnimationFrame(animate);
+    }
+    
+    animate();
+}
         
         // 显示最终祝福信息
         function showFinalMessage() {
@@ -880,16 +856,6 @@
         document.addEventListener('click', handleClick);
         document.addEventListener('touchstart', handleClick, { passive: true });
         document.addEventListener('touchend', handleClick, { passive: true });
-
-        // 音频按钮绑定
-        audioToggle.addEventListener('click', function(e) {
-            e.stopPropagation(); // 防止触发全局的首次点击逻辑两次
-            toggleAudio();
-        });
-
-        // 如果用户在其他地方（例如第一次点击）触发了播放，更新图标
-        bgAudio.addEventListener('play', () => updateAudioIcon(true));
-        bgAudio.addEventListener('pause', () => updateAudioIcon(false));
     </script>
 </body>
 </html>
