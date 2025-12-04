@@ -31,9 +31,7 @@
             background-color: #fef2f2; /* 更柔和的粉色背景，与整体风格一致 */
             cursor: pointer;
             overflow: hidden;
-            position: fixed;
-            top: 0;
-            left: 0;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -41,16 +39,15 @@
             touch-action: manipulation;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            margin: 0;
-            padding: 0;
         }
         
         /* 9:16比例的主容器 */
         .app-container {
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            max-width: 540px; /* 标准手机宽度 */
+            height: 0;
+            padding-bottom: 177.78%; /* 9:16 = 16/9 ≈ 177.78% */
             position: relative;
-            overflow: hidden;
             background-color: #fef2f2;
             overflow: hidden;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
@@ -65,6 +62,29 @@
             height: 100%;
             overflow: hidden;
         }
+
+        /* 右上角音乐控制 */
+        .music-toggle {
+            position: fixed;
+            top: 10px;
+            right: 12px;
+            z-index: 99999;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background-color: rgba(255,255,255,0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        .music-toggle:active { transform: scale(0.96) }
+        .music-toggle .fa { color: #ef476f; font-size: 18px; }
+
+        /* 轻微的半透明提示 */
+        .music-toggle[aria-pressed="true"] { background-color: rgba(244,63,94,0.06); }
 
         /* 加载动画样式 */
         .loading-screen {
@@ -378,6 +398,18 @@
     </style>
 </head>
 <body>
+    <!-- 背景音乐（请替换 src 为你的音频文件路径或公网链接） -->
+    <!-- 示例占位路径：assets/music/zhuyiting-happy-birthday.mp3 -->
+    <audio id="bgm" preload="auto" loop>
+        <source src="assets/music/zhuyiting-happy-birthday.mp3" type="audio/mpeg">
+        你的浏览器不支持 audio 元素。
+    </audio>
+
+    <!-- 音乐开关（可见并可点击） -->
+    <button id="musicToggle" class="music-toggle" aria-pressed="false" aria-label="播放背景音乐">
+        <i class="fa fa-play" aria-hidden="true"></i>
+    </button>
+
     <!-- 加载动画 -->
     <div class="loading-screen" id="loadingScreen">
         <div class="loading-spinner"></div>
@@ -403,11 +435,6 @@
         </div>
     </div>
 
-    <!-- 音频元素 -->
-    <audio id="birthdaySong" loop preload="auto">
-        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" type="audio/mpeg">
-    </audio>
-    
     <script>
         // 生日祝福消息数组
         const loveMessages = [
@@ -459,7 +486,12 @@
         const contentWrapper = document.querySelector('.content-wrapper');
         const birthdayPoster = document.getElementById('birthdayPoster');
         let hasClicked = false;
-        
+
+        // 音乐相关
+        const bgm = document.getElementById('bgm');
+        const musicToggle = document.getElementById('musicToggle');
+        let bgmInitiated = false; // 是否已经在用户手势下尝试过播放
+
         // 隐藏微信提示
         setTimeout(() => {
             if (wechatTip) {
@@ -470,27 +502,78 @@
             }
         }, 3000);
 
+        // 恢复用户的音乐偏好（如果存在）
+        function loadMusicPreference() {
+            try {
+                const paused = localStorage.getItem('bgmPaused');
+                if (paused === 'true') {
+                    bgm.pause();
+                } else if (paused === 'false') {
+                    // 不自动播放，等用户手势触发（会由 handleClick 触发）
+                }
+                updateMusicButton();
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        function updateMusicButton() {
+            const icon = musicToggle.querySelector('.fa');
+            if (!bgm) return;
+            if (bgm.paused) {
+                musicToggle.setAttribute('aria-pressed', 'false');
+                musicToggle.setAttribute('aria-label', '播放背景音乐');
+                icon.classList.remove('fa-pause');
+                icon.classList.add('fa-play');
+            } else {
+                musicToggle.setAttribute('aria-pressed', 'true');
+                musicToggle.setAttribute('aria-label', '暂停背景音乐');
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-pause');
+            }
+        }
+
+        // 尝试在用户手势下播放背景音乐
+        function tryPlayBgm() {
+            if (!bgm || bgmInitiated) return;
+            bgmInitiated = true;
+            bgm.volume = 0.9;
+            const p = bgm.play();
+            if (p && p.then) {
+                p.then(() => {
+                    updateMusicButton();
+                }).catch(err => {
+                    // 在某些浏览器/环境下仍可能被阻止，忽略错误
+                    console.warn('bgm play was blocked', err);
+                });
+            } else {
+                updateMusicButton();
+            }
+        }
+
+        // 音乐切换按钮事件（阻止冒泡，避免触发页面点击逻辑）
+        musicToggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!bgm) return;
+            if (bgm.paused) {
+                bgm.play().catch(() => { /* ignore */ }).then(() => {
+                    updateMusicButton();
+                    localStorage.setItem('bgmPaused', 'false');
+                });
+            } else {
+                bgm.pause();
+                updateMusicButton();
+                localStorage.setItem('bgmPaused', 'true');
+            }
+        });
+
         // 点击事件处理
         function handleClick() {
             if (hasClicked) return;
             hasClicked = true;
 
-            // 播放生日歌
-            const birthdaySong = document.getElementById('birthdaySong');
-            birthdaySong.volume = 0.5; // 设置音量为50%
-            
-            // 尝试播放音频
-            const playPromise = birthdaySong.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log('音频播放成功');
-                }).catch(error => {
-                    console.log('音频播放失败:', error);
-                    // 在移动设备上，可能需要用户交互才能播放音频
-                    alert('请点击屏幕播放生日歌');
-                });
-            }
+            // 在用户第一次点击时，尝试播放音乐（解决移动端自动播放限制）
+            tryPlayBgm();
 
             // 创建粒子效果 - 从海报中心爆发
             createParticles();
@@ -731,20 +814,20 @@
             return isLightColor(bgColor) ? '#333333' : '#ffffff';
         }
 
-// 添加轻微浮动效果
-function addFloatAnimation(element) {
-    let time = 0;
-    const originalTop = parseInt(element.style.top);
-    
-    function animate() {
-        time += 0.01;
-        const floatY = Math.sin(time) * 3; // 只做上下浮动
-        element.style.top = `${originalTop + floatY}px`;
-        requestAnimationFrame(animate);
-    }
-    
-    animate();
-}
+        // 添加轻微浮动效果
+        function addFloatAnimation(element) {
+            let time = 0;
+            const originalTop = parseFloat(element.style.top);
+            
+            function animate() {
+                time += 0.01;
+                const floatY = Math.sin(time) * 3; // 只做上下浮动
+                element.style.top = `${originalTop + floatY}px`;
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
         
         // 显示最终祝福信息
         function showFinalMessage() {
@@ -803,6 +886,9 @@ function addFloatAnimation(element) {
         document.addEventListener('DOMContentLoaded', function() {
             console.log('页面加载完成，初始化动画...');
             
+            // 尝试恢复音乐偏好
+            loadMusicPreference();
+
             // 显示加载动画2秒后再显示开始画面
             setTimeout(function() {
                 const loadingScreen = document.getElementById('loadingScreen');
@@ -827,6 +913,18 @@ function addFloatAnimation(element) {
         document.addEventListener('click', handleClick);
         document.addEventListener('touchstart', handleClick, { passive: true });
         document.addEventListener('touchend', handleClick, { passive: true });
+
+        // WeChat JSBridge 兼容：在微信中也尝试激活播放
+        if (typeof WeixinJSBridge !== 'undefined') {
+            try {
+                document.addEventListener('WeixinJSBridgeReady', function () {
+                    // 如果页面已经有用户手势，tryPlayBgm 会触发；否则这里也尝试下（有些微信版本允许）
+                    tryPlayBgm();
+                }, false);
+            } catch (e) {
+                // ignore
+            }
+        }
     </script>
 </body>
 </html>
