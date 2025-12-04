@@ -1,4 +1,3 @@
-[love_notes.html](https://github.com/user-attachments/files/23925718/love_notes.html)
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -32,7 +31,9 @@
             background-color: #fef2f2; /* 更柔和的粉色背景，与整体风格一致 */
             cursor: pointer;
             overflow: hidden;
-            position: relative;
+            position: fixed;
+            top: 0;
+            left: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -40,15 +41,16 @@
             touch-action: manipulation;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            margin: 0;
+            padding: 0;
         }
         
         /* 9:16比例的主容器 */
         .app-container {
-            width: 100%;
-            max-width: 540px; /* 标准手机宽度 */
-            height: 0;
-            padding-bottom: 177.78%; /* 9:16 = 16/9 ≈ 177.78% */
+            width: 100vw;
+            height: 100vh;
             position: relative;
+            overflow: hidden;
             background-color: #fef2f2;
             overflow: hidden;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
